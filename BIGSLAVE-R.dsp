@@ -32,7 +32,7 @@ insel = ba.selectn(18,channel) : _
 
 // ----------------------------------------------------------------- PRE SECTION
 
-presec = hgroup("[06] PRE SECTION",
+presec = hgroup("[06] PRE CUT",
           ba.bypass1(lop,fi.lowpass(HO,HC)) :
           ba.bypass1(hip,fi.highpass(LO,LC))) :
          hgroup("[07]PHASE & GAIN" , gain : rpol)
@@ -72,33 +72,53 @@ with{
 
 // ----------------------------------------------------------------------------- PANNER
 // ITD + IID/distanza
-panpot(x) = (c)*x, // LEFT SIDE LINEAR
+panpot(x) = // ch 01
+            (c)*x, // LEFT SIDE LINEAR
             sqrt(c)*x, // LEFT SIDE SQRT
             de.fdelay3(64, max(del(r,d,alpha), 0) + 1), // LEFT SIDE ITD
+            x*0.707,
+            // ch 02
             (1-c)*x, // RIGHT SIDE LINEAR
             sqrt(1-c)*x , // RIGHT SIDE SQRT
-            de.fdelay3(64, max(-del(r,d,alpha), 0) + 1) : // RIGHT SIDE ITD
-            ba.selectn(3, pmode), ba.selectn(3, pmode) :
-            mute, mute
+            de.fdelay3(64, max(-del(r,d,alpha), 0) + 1), // RIGHT SIDE ITD
+            x*cos(alpha)*cos(elv),
+            // ch 03
+            _,
+            _,
+            _,
+            x*sin(alpha)*cos(elv),
+            // ch 04
+            _,
+            _,
+            _,
+            x*sin(elv) :
+            ba.selectn(4, pmode), ba.selectn(4, pmode), ba.selectn(4, pmode), ba.selectn(4, pmode) :
+            mute, mute, mute, mute
 			with {
-        pan_group(x) = vgroup("[0]", x);
+        pan_group(x) = vgroup("[00] PAN", x);
         // angolo di incidenza per tutti i panner
-        a = pan_group(hgroup("[1]", vslider("[1] Angle [style:knob][unit:deg]", 0,-90,90,1)));
+        a = pan_group(vslider("[02] Angle [style:knob][unit:deg]", 0,-90,90,1));
         // riscalamento tra 0 e 1 per i panner lineare e quadratico
         c = (a -90.0)/-180.0 : si.smoo;
         // distanza delle orecchie
         d = 17; //pan_group(nentry("[3] Ears distance [unit:cm] [tooltip: It works only with ITD]",17,15,20,0.1) / 100);
         // raggio tra sorgente e testa
-        r = pan_group(nentry("[2] ITD Radius [unit:cm",100,15,5000,1) / 100);
+        r = pan_group(nentry("[04] Radius [unit:cm",100,15,5000,1) / 100);
         // radianti di a
         alpha = ((a +(90.0))*ma.PI)/180.0 : si.smoo;
+        elv = pan_group((nentry("[03] Elevation [style:knob][unit:deg]", 0.0, 0.0, 359.9, 0.1)) * ma.PI / 180) : si.smoo;
         // quadrato di x
         quad(x) = x*x;
         // differenza tra le due orecchie
         delta(r,d,alpha) = sqrt(quad(r) - d*r*cos(alpha) + quad(d)/4) -
                            sqrt(quad(r) + d*r*cos(alpha) + quad(d)/4);
         del(r,d,alpha) = delta(r,d,alpha) / pm.speedOfSound * ma.SR;
-        pmode = pan_group(hgroup("[0]", nentry("[1] PAN MODE [style:menu{'Linear':0;'Equal Gain':1;'ITD PAN':2}]", 1, 0, 3, 1)) : int);
+        pmode = pan_group(nentry("[01] PAN MODE [style:menu{
+          'Linear':0;
+          'Equal Gain':1;
+          'ITD PAN':2;
+          'BFMT':3
+          }]", 1, 0, 4, 1)) : int;
         mute = pan_group(*(1 - checkbox("[4] MUTE")));
 			};
 
@@ -109,14 +129,15 @@ envelop = abs : max ~ -(1.0/ma.SR) : max(ba.db2linear(-70)) : ba.linear2db;
 fader	= *(vslider("[10] Vol", 0, -96, +12, 0.1) : ba.db2linear : si.smoo);
 
 // ------------------------------------------------------------------------VOICE
-voice(v) = vgroup("[01] CH %w",
-           vgroup("PRE SECTION", insel : hmeter) : presec : peq <:
-           hgroup("[90] CH %w",
-           panpot : fader, fader : met_group(vmeter), met_group(vmeter)))
+voice(v) = vgroup("[01] CH %ww",
+           vgroup("INPUT", insel : hmeter) : presec : peq <:
+           hgroup("[90] CH %ww", panpot :
+           fader, fader, fader, fader :
+           met_group(vmeter), met_group(vmeter), met_group(vmeter), met_group(vmeter)))
              with{
     pf_group(x) = vgroup("[90]", x);
     met_group(x) = hgroup("[97] LR",x);
-    w = v+(01);
+    ww = v+(01);
   };
 
 // ----------------------------------------------------------------------------- STEREO OUT
